@@ -33,15 +33,16 @@ import 'package:image/image.dart' as IMG;
 import 'package:flutter/foundation.dart';
 
 import 'package:zerolens100/main.dart';
+import 'package:zerolens100/screen/segment_ocr_scan/painter.dart';
 
-class SegmentOcrScan extends StatefulWidget {
-  const SegmentOcrScan({Key? key}) : super(key: key);
+class ScreenSegmentOcrScan extends StatefulWidget {
+  const ScreenSegmentOcrScan({Key? key}) : super(key: key);
 
   @override
   _SegmentOcrScanState createState() => _SegmentOcrScanState();
 }
 
-class _SegmentOcrScanState extends State<SegmentOcrScan> with WidgetsBindingObserver {
+class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindingObserver {
   // 카메라 데이터
   CameraController? controller;
   bool _isCameraInitialized = false;
@@ -231,21 +232,50 @@ class _SegmentOcrScanState extends State<SegmentOcrScan> with WidgetsBindingObse
         children: [
           Column(
             children: [
-              _isCameraInitialized ?
-              AspectRatio(
-                aspectRatio: 1,
-                child: ClipRect(
-                  child: Transform.scale(
-                    scale: controller!.value.aspectRatio,
-                    child: Center(
-                      child: AspectRatio(
-                        aspectRatio: 1 / controller!.value.aspectRatio,
-                        child: controller!.buildPreview(),
-                      ), // this is my CameraPreview
+              Stack(
+                children: [
+                  _isCameraInitialized ? AspectRatio(
+                    aspectRatio: 1,
+                    child: ClipRect(
+                      child: Transform.scale(
+                        scale: controller!.value.aspectRatio,
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: 1 / controller!.value.aspectRatio,
+                            child: controller!.buildPreview(),
+                          ), // this is my CameraPreview
+                        ),
+                      ),
+                    ),
+                  ) : Container(),
+                  CustomPaint(
+                    foregroundPainter: SegmentOcrScanPainter(),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: Container(
+                        padding: const EdgeInsets.all(5.0),
+                        alignment: Alignment.bottomCenter,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: <Color>[
+                              Colors.black.withAlpha(0),
+                              Colors.black12,
+                              Colors.black87
+                            ],
+                          ),
+                        ),
+                        child: const Text(
+                          '혈압계 화면이 사각형 영역에 겹치도록 놓아주세요',
+                          style: TextStyle(color: Colors.white, fontSize: 20.0),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ) : Container(),
+                ],
+              ),
+
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 5, 10, 0),
                 child: Row(

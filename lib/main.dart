@@ -1,21 +1,3 @@
-// import 'package:flutter/material.dart';
-// import 'package:camera/camera.dart';
-//
-// import 'screen/camera.dart';
-// import 'screen/about.dart';
-//
-// List<CameraDescription> cameras = [];
-//
-// Future<void> main() async {
-//   try {
-//     WidgetsFlutterBinding.ensureInitialized();
-//     cameras = await availableCameras();
-//   } on CameraException catch (e) {
-//     print('Error in fetching the cameras: $e');
-//   }
-//   runApp(const MyApp());
-// }
-//
 // class MyApp extends StatelessWidget {
 //   const MyApp({Key? key}) : super(key: key);
 //
@@ -131,14 +113,17 @@
 //   }
 // }
 
+// 종속성
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+// 직접 선언한 스크린들 
+import 'package:zerolens100/screen/index.dart';
 import 'package:zerolens100/screen/about.dart';
 import 'package:zerolens100/screen/camera.dart';
 import 'package:zerolens100/screen/segment_ocr_scan.dart';
 
+// 루트 카메라 리스트
 List<CameraDescription> cameras = [];
 
 Future<void> main() async {
@@ -157,13 +142,15 @@ class MainApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'ZeroLens100',
       theme: ThemeData(
         colorSchemeSeed: Colors.pinkAccent,
+        // primarySwatch: Colors.blue,
       ),
-      debugShowCheckedModeBanner: false,
       routes: {
-        '/': (context) => const SegmentOcrScan(),
+        '/': (context) => const ScreenIndex(),
+        '/ocr': (context) => const ScreenSegmentOcrScan(),
         '/camera': (context) => const ScreenCamera(),
         '/about': (context) => const ScreenAbout(),
       },
