@@ -117,7 +117,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-// 직접 선언한 스크린들 
+// 직접 선언한 스크린들
 import 'package:zerolens100/screen/index.dart';
 import 'package:zerolens100/screen/about.dart';
 import 'package:zerolens100/screen/camera.dart';
@@ -149,7 +149,7 @@ class MainApp extends StatelessWidget {
         // primarySwatch: Colors.blue,
       ),
       routes: {
-        '/': (context) => const ScreenIndex(),
+        '/': (context) => const ScreenSegmentOcrScan(),
         '/ocr': (context) => const ScreenSegmentOcrScan(),
         '/camera': (context) => const ScreenCamera(),
         '/about': (context) => const ScreenAbout(),

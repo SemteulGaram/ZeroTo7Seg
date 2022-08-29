@@ -1,19 +1,14 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:io';
-import 'dart:math';
 import 'dart:ffi';
 
-import 'package:ffi/ffi.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
-import 'package:image/image.dart' as IMG;
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as lib_image;
 
 import 'package:zerolens100/main.dart';
+import 'package:zerolens100/screen/segment_ocr_scan/ocr.dart';
 import 'package:zerolens100/screen/segment_ocr_scan/painter.dart';
 
 class ScreenSegmentOcrScan extends StatefulWidget {
@@ -34,338 +29,226 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
   CameraController? _controller;
   late Future<void> _initializeControllerFuture;
   bool _isCameraInitialized = false;
-  bool _isStreaming = false;
-  Image _img = Image.asset('assets/default.jpg');
-  Image _old = Image.asset('assets/default.jpg');
   final resolutionPresets = ResolutionPreset.values;
-  ResolutionPreset currentResolutionPreset = ResolutionPreset.low;
+  ResolutionPreset currentResolutionPreset = ResolutionPreset.high;
+  bool flashMode = false;
+  bool focusLockMode = false;
 
-  // === Tesseract 데이터 ===
-  String _ocrText = '';
-  // var LangList = ["kor", "eng", "deu", "chi_sim", "seven_seg"];
-  var selectList = ["seven_seg"];
-  String path = "";
+  // === OCR 인스턴스 ===
+  SegmentOcrScanOcr ocrManager = SegmentOcrScanOcr();
+  // ! 임시 코드. 나중에 빈 배열로 바꿀 것
+  List<OcrDrawDto> ocrDrawDtoList = [
+    OcrDrawDto(
+      rect: const Rect.fromLTWH(50, 200, 200, 100),
+      text: '127',
+    ),
+    OcrDrawDto(
+      rect: const Rect.fromLTWH(80, 500, 100, 70),
+      text: '74',
+    ),
+  ];
+  // 화면을 가리는 로딩창
   bool bload = false;
-  bool bDownloadtessFile = false;
+  String _ocrText = '';
 
-  Future<void> writeToFile(ByteData data, String path) {
-    final buffer = data.buffer;
-    return new File(path).writeAsBytes(
-        buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
-  }
-
-  void runFilePiker() async {
-    // android && ios only
-    final pickedFile =
-        await ImagePicker().getImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      _ocr(pickedFile.path);
-    }
-  }
-
+  // segment_ocr_scan/ocr.dart 파일에 OCR 요청 방법 (이 메소드는 이전 방법임 DEPRECATED)
   Future<void> doOcr() async {
     bload = true;
 
     var captureFile = await _controller!.takePicture();
-    _ocrText = captureFile.path;
-    await imagePreprocess(_ocrText);
-    await _ocr(_ocrText);
+    await ocrManager.ocrPreprocess(captureFile.path);
+    _ocrText = await ocrManager.ocr(captureFile.path);
 
     bload = false;
   }
 
-  Future<void> imagePreprocess(String filePath) async {
-    // Uint8List _byte = await Cv2.adaptiveThreshold(
-    //     pathFrom: CVPathFrom.ASSETS,
-    //     pathString: filePath,
-    //     maxValue: 220,
-    //     adaptiveMethod: Cv2.ADAPTIVE_THRESH_MEAN_C,
-    //     thresholdType: Cv2.THRESH_BINARY,
-    //     blockSize: 11,
-    //     constantValue: 12
-    // );
+  // segment_ocr_scan/ocr.dart 파일에 비동기 OCR 요청 방법
+  Future<void> doOcr2() async {
+    bload = true;
+    var captureFile = await _controller!.takePicture();
+    var result = await ocrManager.computeOcrPreprocess2(captureFile.path);
 
-    Uint8List bytes = await File(filePath).readAsBytes();
-    IMG.Image? src = IMG.decodeImage(bytes);
+    print(result.need_to_OCR_img_path);
+    _ocrText = await ocrManager.ocr(result.need_to_OCR_img_path);
 
-    if (src == null) {
-      // TODO: alert dialog
-      print("src is NULL");
-      return;
+    //OCR 결과 출력
+    print(_ocrText);
+
+    print("SEG_RECT ${result.segmentAreaRect[0]}");
+    print("SEG_RECT ${result.segmentAreaRect[1]}");
+
+    List<OcrDrawDto> ocrDrawList = [];
+    for (var i = 0; i < result.segmentAreaRect.length; i++) {
+      ocrDrawList.add(OcrDrawDto(
+        text: _ocrText,
+        rect: Rect.fromLTWH(
+            result.segmentAreaRect[i].left,
+            result.segmentAreaRect[i].top,
+            result.segmentAreaRect[i].width,
+            result.segmentAreaRect[i].height),
+      ));
     }
-
-    var cropSize = min(src.width, src.height);
-    int offsetX = (src.width - min(src.width, src.height)) ~/ 2;
-    int offsetY = (src.height - min(src.width, src.height)) ~/ 2;
-
-    IMG.Image destImage =
-        IMG.copyCrop(src, offsetX, offsetY, cropSize, cropSize);
-
-    // if (flip) {
-    //   destImage = IMG.flipVertical(destImage);
-    // }
-
-    var jpg = IMG.encodeJpg(destImage);
-    await File(filePath).writeAsBytes(jpg);
-  }
-
-  Future<void> _ocr(url) async {
-    if (selectList.length <= 0) {
-      print("Please select language");
-      return;
-    }
-    path = url;
-    if (kIsWeb == false &&
-        (url.indexOf("http://") == 0 || url.indexOf("https://") == 0)) {
-      Directory tempDir = await getTemporaryDirectory();
-      HttpClient httpClient = new HttpClient();
-      HttpClientRequest request = await httpClient.getUrl(Uri.parse(url));
-      HttpClientResponse response = await request.close();
-      Uint8List bytes = await consolidateHttpClientResponseBytes(response);
-      String dir = tempDir.path;
-      print('$dir/test.jpg');
-      File file = new File('$dir/test.jpg');
-      await file.writeAsBytes(bytes);
-      url = file.path;
-    }
-    var langs = selectList.join("+");
-
-    setState(() {});
-
-    _ocrText = await FlutterTesseractOcr.extractText(url,
-        language: langs,
-        args: {"preserve_interword_spaces": "1", "psm": "6", "oem": "3"});
-    //  ========== Test performance  ==========
-    // DateTime before1 = DateTime.now();
-    // print('init : start');
-    // for (var i = 0; i < 10; i++) {
-    //   _ocrText =
-    //       await FlutterTesseractOcr.extractText(url, language: langs, args: {
-    //     "preserve_interword_spaces": "1",
-    //   });
-    // }
-    // DateTime after1 = DateTime.now();
-    // print('init : ${after1.difference(before1).inMilliseconds}');
-    //  ========== Test performance  ==========
-
-    // _ocrHocr =
-    //     await FlutterTesseractOcr.extractHocr(url, language: langs, args: {
-    //   "preserve_interword_spaces": "1",
-    // });
-    // print(_ocrText);
-    // print(_ocrText);
-
-    // === web console test code ===
-    // var worker = Tesseract.createWorker();
-    // await worker.load();
-    // await worker.loadLanguage("eng");
-    // await worker.initialize("eng");
-    // // await worker.setParameters({ "tessjs_create_hocr": "1"});
-    // var rtn = worker.recognize("https://tesseract.projectnaptha.com/img/eng_bw.png");
-    // console.log(rtn.data);
-    // await worker.terminate();
-    // === web console test code ===
-
-    setState(() {});
-  }
-
-  @override
-  void initState() {
-    // 카메라 선택 (기본값 0)
-    onNewCameraSelected(cameras[0]);
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final CameraController? cameraController = _controller;
-
-    // 초기화 하기 전에 상태가 바뀌는 경우
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      return;
-    }
-
-    if (state == AppLifecycleState.inactive) {
-      // 앱이 비활성 상태일때 메모리 해제
-      cameraController.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      // 앱이 다시 활성되면 동일한 속성으로 카메라 재 초기화
-      onNewCameraSelected(cameraController.description);
-    }
+    setState(() {
+      // ! 작동 안될때의 임시 예제 코드 !
+      ocrDrawDtoList = [
+        OcrDrawDto(
+          rect: const Rect.fromLTWH(50, 200, 200, 100),
+          text: '127',
+        ),
+        OcrDrawDto(
+          rect: const Rect.fromLTWH(80, 500, 100, 70),
+          text: '74',
+        ),
+      ];
+      // ! 작동되면 아래 코드를 대신 이용할 것 !
+      // ocrDrawDtoList = ocrDrawList;
+    });
+    bload = false;
   }
 
   @override
   Widget build(BuildContext context) {
-    var vw100 = MediaQuery.of(context).size.width;
+    const textStyleP = TextStyle(color: Colors.white, fontSize: 20.0);
+    var deviceSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("🥼 0to100 7-Segment OCR Camera"),
-      ),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              Stack(
-                children: [
-                  _isCameraInitialized
-                      ? AspectRatio(
-                          aspectRatio: 1,
-                          child: ClipRect(
-                            child: Transform.scale(
-                              scale: _controller!.value.aspectRatio,
-                              child: Center(
-                                child: AspectRatio(
-                                  aspectRatio:
-                                      1 / _controller!.value.aspectRatio,
-                                  child: /*_controller!.buildPreview()*/ Stack(
-                                      children: [_old, _img]),
-                                ), // this is my CameraPreview
-                              ),
+      backgroundColor: Colors.black,
+      body: (_isCameraInitialized &&
+              _controller != null &&
+              _controller!.value.previewSize != null)
+          ? Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 1 / _controller!.value.aspectRatio,
+                  child: Stack(
+                    children: [
+                      _controller!.buildPreview(),
+                      CustomPaint(
+                        foregroundPainter: SegmentOcrScanPainter(
+                            ocrDrawDtoList: ocrDrawDtoList),
+                        child: Container(
+                          padding: const EdgeInsets.all(5.0),
+                          alignment: Alignment.bottomCenter,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: <Color>[
+                                Colors.black.withAlpha(0),
+                                Colors.black.withAlpha(0),
+                                Colors.black.withAlpha(0),
+                                Colors.black.withAlpha(0),
+                                Colors.black.withAlpha(0),
+                                Colors.black.withAlpha(0),
+                                Colors.black12,
+                                Colors.black
+                              ],
                             ),
                           ),
-                        )
-                      : Container(),
-                  CustomPaint(
-                    foregroundPainter: SegmentOcrScanPainter(),
-                    child: AspectRatio(
-                      aspectRatio: 1,
-                      child: Container(
-                        padding: const EdgeInsets.all(5.0),
-                        alignment: Alignment.bottomCenter,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: <Color>[
-                              Colors.black.withAlpha(0),
-                              Colors.black12,
-                              Colors.black87
-                            ],
-                          ),
-                        ),
-                        child: const Text(
-                          '혈압계 화면이 사각형 영역에 겹치도록 놓아주세요',
-                          style: TextStyle(color: Colors.white, fontSize: 20.0),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 5, 10, 0),
-                child: Row(
+                ),
+                Column(
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          top: 40.0, left: 20.0, right: 20.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('혈압계 OCR 인식', style: textStyleP),
+                          Expanded(
+                            child: Container(),
+                          ),
+                        ],
+                      ),
+                    ),
                     Expanded(
-                      child: ElevatedButton(
-                          onPressed: bload
-                              ? null
-                              : () {
-                                  doOcr();
-                                },
-                          child: const Text("📷 인식")),
+                      child: Container(),
+                    ),
+                    const Text(
+                      '최고 혈압 부분이 사각형 영역에 겹치도록 놓아주세요',
+                      style: textStyleP,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          bottom: 40.0, left: 20.0, right: 20.0, top: 20.0),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                            },
+                            icon: const Icon(Icons.arrow_back_ios_new),
+                            color: Colors.white,
+                            tooltip: '뒤로가기',
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              // ! 디버깅 목적으로 포커스 버튼을 누를 때 OCR을 실행하도록 바꿔둠 !
+                              doOcr2();
+                              return;
+
+                              if (focusLockMode) {
+                                _controller!.setFocusMode(FocusMode.auto);
+                              } else {
+                                _controller!.setFocusMode(FocusMode.locked);
+                              }
+                              setState((() {
+                                focusLockMode = !focusLockMode;
+                              }));
+                            },
+                            icon: Icon(focusLockMode
+                                ? Icons.do_not_disturb
+                                : Icons.filter_center_focus),
+                            color: Colors.white,
+                            tooltip: '포커싱 잠금',
+                          ),
+                          IconButton(
+                            onPressed: () async {
+                              // 플래시 모드 변경
+                              if (flashMode) {
+                                await _controller?.setFlashMode(FlashMode.off);
+                              } else {
+                                await _controller
+                                    ?.setFlashMode(FlashMode.torch);
+                              }
+                              setState(() {
+                                flashMode = !flashMode;
+                              });
+                            },
+                            icon: Icon(flashMode
+                                ? Icons.lightbulb
+                                : Icons.lightbulb_outline),
+                            color: Colors.white,
+                            tooltip: '플래시',
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                  child: ListView(
+              ],
+            )
+          : Center(
+              child: Column(
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                    child: bload
-                        ? Column(children: const [CircularProgressIndicator()])
-                        : Text(
-                            '$_ocrText',
-                          ),
+                  Expanded(child: Container()),
+                  const Padding(
+                    padding: EdgeInsets.all(10.0),
+                    child: CircularProgressIndicator(),
                   ),
-                  path.isEmpty
-                      ? Container()
-                      : path.contains("http")
-                          ? Image.network(path)
-                          : Image.file(File(path)),
+                  const Text(
+                    '카메라 준비 중...',
+                    style: TextStyle(color: Colors.white, fontSize: 20.0),
+                  ),
+                  Expanded(child: Container()),
                 ],
-              ))
-            ],
-          ),
-          Container(
-            color: Colors.black26,
-            child: bDownloadtessFile
-                ? Center(
-                    child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      Text('download Trained language files')
-                    ],
-                  ))
-                : SizedBox(),
-          )
-        ],
-      ),
-
-      floatingActionButton: kIsWeb
-          ? Container()
-          : FloatingActionButton(
-              onPressed: () async {
-                // runFilePiker();
-                // Take the Picture in a try / catch block. If anything goes wrong,
-                // catch the error.
-                try {
-                  // Ensure that the camera is initialized.
-                  await _initializeControllerFuture;
-                  if (_isStreaming) {
-                    await _controller!.stopImageStream();
-                    print("Stopped");
-                    setState(() => _isStreaming = false);
-                  } else {
-                    setState(() => _isStreaming = true);
-                    print("Starting");
-
-                    await _controller!
-                        .startImageStream((CameraImage availableImage) async {
-                      Pointer<Uint32> s = malloc.allocate(1);
-                      s[0] = availableImage.planes[0].bytes.length;
-                      Pointer<Uint8> p = malloc.allocate(3 *
-                          availableImage.height *
-                          availableImage
-                              .width); // Taking extra space for buffer
-                      p
-                          .asTypedList(s[0])
-                          .setRange(0, s[0], availableImage.planes[0].bytes);
-
-                      final imageffi = dylib.lookupFunction<
-                          Void Function(Pointer<Uint8>, Pointer<Uint32>),
-                          void Function(
-                              Pointer<Uint8>, Pointer<Uint32>)>('image_ffi');
-                      imageffi(p, s);
-
-                      if (mounted) {
-                        setState(() {
-                          _old = _img;
-                          _img = Image.memory(p.asTypedList(s[0]));
-                        });
-                      }
-
-                      malloc.free(p);
-                      malloc.free(s);
-                    });
-                  }
-                } catch (e) {
-                  // If an error occurs, log the error to the console.
-                  print(e);
-                }
-              },
-              tooltip: 'OCR',
-              child: const Icon(Icons.lens),
-            ), // This trailing comma makes auto-formatting nicer for build methods.
+              ),
+            ),
     );
   }
 
@@ -407,5 +290,38 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
         });
       }
     });
+  }
+
+  @override
+  void initState() {
+    // 카메라 선택 (기본값 0)
+    if (cameras.isNotEmpty) {
+      onNewCameraSelected(cameras[0]);
+    }
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? cameraController = _controller;
+
+    // 초기화 하기 전에 상태가 바뀌는 경우 무시
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      // 앱이 비활성 상태일때 메모리 해제
+      cameraController.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      // 앱이 다시 활성되면 동일한 속성으로 카메라 재 초기화
+      onNewCameraSelected(cameraController.description);
+    }
   }
 }
