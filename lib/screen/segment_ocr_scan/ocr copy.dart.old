@@ -1,0 +1,174 @@
+import 'dart:ffi';
+import 'dart:io';
+import 'dart:isolate';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:camera/camera.dart';
+import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_tesseract_ocr/android_ios.dart';
+import 'package:image/image.dart' as lib_image;
+
+class OcrPreprocessResult {
+  lib_image.Image segmentAreaImg;
+  List<Rectangle> segmentAreaRect;
+
+  OcrPreprocessResult({
+    required this.segmentAreaImg,
+    required this.segmentAreaRect,
+  });
+}
+
+class SegmentOcrScanOcr {
+  // === OpenCV FFI ===
+  final dylib = Platform.isAndroid
+      ? DynamicLibrary.open("libOpenCV_ffi.so")
+      : DynamicLibrary.process();
+
+  // === Isolate interface ===
+  ReceivePort? _receivePort;
+  Isolate? _isolate;
+
+  bool isRunOcrThread() {
+    return _isolate != null;
+  }
+
+  Future<void> startOcrThread() async {
+    if (_isolate != null) {
+      stopOcrThread();
+    }
+    _receivePort = ReceivePort();
+    _receivePort!.listen((data) {
+      // isolate와 쌍방향 통신 확립
+      if (data is SendPort) {
+        data.send("Hello from main");
+      } else {
+        // isolate에서 보낸 메시지를 받는다.
+        print('isolate에서 보낸 메시지를 받는다. $data');
+      }
+    });
+    _isolate = await Isolate.spawn(
+      SegmentOcrScanOcrIsolate.runIsolate,
+      _receivePort!.sendPort,
+    );
+  }
+
+  void stopOcrThread() async {
+    _isolate?.kill(priority: Isolate.immediate);
+    _isolate = null;
+    _receivePort = null;
+  }
+
+  Future<void> ocrPreprocess2(String filePath) async {
+    Uint8List bytes = await File(filePath).readAsBytes();
+    lib_image.Image? src = lib_image.decodeImage(bytes);
+
+    if (src == null) {
+      // TODO: alert dialog
+      print("src is NULL");
+      return;
+    }
+
+    var cropSize = min(src.width, src.height);
+    int offsetX = (src.width - min(src.width, src.height)) ~/ 2;
+    int offsetY = (src.height - min(src.width, src.height)) ~/ 2;
+
+    lib_image.Image destImage =
+        lib_image.copyCrop(src, offsetX, offsetY, cropSize, cropSize);
+
+    var jpg = lib_image.encodeJpg(destImage);
+    await File(filePath).writeAsBytes(jpg);
+  }
+
+  Future<String> ocr2(imgPath) async {
+    final ocrText = await FlutterTesseractOcr.extractText(imgPath,
+        language: 'seven_seg',
+        args: {"preserve_interword_spaces": "1", "psm": "6", "oem": "3"});
+
+    return ocrText;
+  }
+}
+
+class SegmentOcrScanOcrIsolate {
+  static void runIsolate(SendPort sendPort) async {
+    final _isolateInstance = SegmentOcrScanOcrIsolate();
+    // 메인 스래드와 쌍방향 소통을 위해 새 ReceivePort 쌍 생성
+    final _receivePort = ReceivePort();
+    _receivePort.listen((data) {
+      // main에서 온 메시지
+      // 대기 상태에서 이미지가 들어오면 처리 시작
+      if (data is Uint8List) {
+        if (!_isolateInstance.isProcessing) {
+          _isolateInstance.isProcessing = true;
+          _isolateInstance.doOCR(data);
+        }
+      } else {
+        print('main에서 보낸 메시지를 받는다. $data');
+      }
+    });
+    sendPort.send(_receivePort.sendPort);
+    sendPort.send('Hello from isolate');
+  }
+
+  bool isProcessing = false;
+
+  Future< doOCR(Uint8List buffer) {}
+
+  Future<OcrPreprocessResult> _computeOcrPreprocess(CameraImage camImg) async {
+    // 버퍼 사이즈 변수
+    Pointer<Uint32> nativeSize = malloc.allocate<Uint32>(1);
+    // 전체 이미지를 담아도 남을 사이즈의 버퍼
+    Pointer<Uint8> nativeBuffer =
+        malloc.allocate<Uint8>(3 * camImg.height * camImg.width);
+    // 세그먼트 감지된 영역 x, y, w, h * 2영역 = 8
+    Pointer<Uint32> nativeSegmentArea = malloc.allocate<Uint32>(8);
+
+    // 이미지 버퍼로 전달
+    nativeSize[0] = camImg.planes[0].bytes.length;
+    nativeBuffer
+        .asTypedList(nativeSize[0])
+        .setRange(0, nativeSize[0], camImg.planes[0].bytes);
+
+    // FFI 로드
+    final ffiOcrPreprocess = dylib.lookupFunction<
+        Void Function(Pointer<Uint8>, Pointer<Uint32>, Pointer<Uint32>),
+        void Function(Pointer<Uint8>, Pointer<Uint32>,
+            Pointer<Uint32>)>('ffi_ocr_preprocess');
+
+    // FFI 호출
+    ffiOcrPreprocess(nativeBuffer, nativeSize, nativeSegmentArea);
+
+    // 반환값 정리
+    final segmentAreaImg = lib_image.Image.fromBytes(
+      camImg.width,
+      camImg.height,
+      nativeBuffer.asTypedList(nativeSize[0]),
+    );
+    final segmentAreaRect = [
+      Rectangle(
+        nativeSegmentArea[0],
+        nativeSegmentArea[1],
+        nativeSegmentArea[2],
+        nativeSegmentArea[3],
+      ),
+      Rectangle(
+        nativeSegmentArea[4],
+        nativeSegmentArea[5],
+        nativeSegmentArea[6],
+        nativeSegmentArea[7],
+      ),
+    ];
+
+    // 메모리 해제
+    malloc.free(nativeSize);
+    malloc.free(nativeBuffer);
+    malloc.free(nativeSegmentArea);
+
+    // OcrPreprocessResult 반환
+    return OcrPreprocessResult(
+      segmentAreaImg: segmentAreaImg,
+      segmentAreaRect: segmentAreaRect,
+    );
+  }
+}

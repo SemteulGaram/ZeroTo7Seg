@@ -13,31 +13,30 @@ class SegmentOcrScanPainter extends CustomPainter {
     return Path()
       // -, -
       ..moveTo(ctx.center.dx, ctx.center.dy)
-      ..relativeMoveTo(-ctx.width/2, -ctx.height/2 + ctx.crosshairY)
+      ..relativeMoveTo(-ctx.width / 2, -ctx.height / 2 + ctx.crosshairY)
       ..relativeLineTo(0, -ctx.crosshairY)
       ..relativeLineTo(ctx.crosshairX, 0)
       // +, -
       ..moveTo(ctx.center.dx, ctx.center.dy)
-      ..relativeMoveTo(ctx.width/2, -ctx.height/2 + ctx.crosshairY)
+      ..relativeMoveTo(ctx.width / 2, -ctx.height / 2 + ctx.crosshairY)
       ..relativeLineTo(0, -ctx.crosshairY)
       ..relativeLineTo(-ctx.crosshairX, 0)
       // +, +
       ..moveTo(ctx.center.dx, ctx.center.dy)
-      ..relativeMoveTo(ctx.width/2, ctx.height/2 - ctx.crosshairY)
+      ..relativeMoveTo(ctx.width / 2, ctx.height / 2 - ctx.crosshairY)
       ..relativeLineTo(0, ctx.crosshairY)
       ..relativeLineTo(-ctx.crosshairX, 0)
       // -, +
       ..moveTo(ctx.center.dx, ctx.center.dy)
-      ..relativeMoveTo(-ctx.width/2, ctx.height/2 - ctx.crosshairY)
+      ..relativeMoveTo(-ctx.width / 2, ctx.height / 2 - ctx.crosshairY)
       ..relativeLineTo(0, ctx.crosshairY)
       ..relativeLineTo(ctx.crosshairX, 0);
-
   }
 
   @override
   void paint(Canvas canvas, Size size) {
     var ctx = SOSPCtx()
-      ..center = Offset(size.width/2, size.height/2)
+      ..center = Offset(size.width / 2, size.height / 2)
       ..width = 300.0
       ..height = 200.0
       ..crosshairX = 50.0
@@ -61,7 +60,7 @@ class SegmentOcrScanPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    // Never need repaint
     return false;
-    throw UnimplementedError();
   }
 }

@@ -2,33 +2,14 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ffi';
 
+import 'package:ffi/ffi.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_tesseract_ocr/flutter_tesseract_ocr.dart';
-import 'package:opencv_4/opencv_4.dart';
-import 'package:opencv_4/factory/colormaps/applycolormap_factory.dart';
-import 'package:opencv_4/factory/colorspace/cvtcolor_factory.dart';
-import 'package:opencv_4/factory/imagefilter/bilateralfilter_factory.dart';
-import 'package:opencv_4/factory/imagefilter/blur_factory.dart';
-import 'package:opencv_4/factory/imagefilter/boxfilter_factory.dart';
-import 'package:opencv_4/factory/imagefilter/dilate_factory.dart';
-import 'package:opencv_4/factory/imagefilter/erode_factory.dart';
-import 'package:opencv_4/factory/imagefilter/filter2d_factory.dart';
-import 'package:opencv_4/factory/imagefilter/gaussianblur_factoy.dart';
-import 'package:opencv_4/factory/imagefilter/laplacian_factory.dart';
-import 'package:opencv_4/factory/imagefilter/medianblur_factory.dart';
-import 'package:opencv_4/factory/imagefilter/morphologyex_factory.dart';
-import 'package:opencv_4/factory/imagefilter/pyrmeanshiftfiltering_factory.dart';
-import 'package:opencv_4/factory/imagefilter/scharr_factory.dart';
-import 'package:opencv_4/factory/imagefilter/sobel_factory.dart';
-import 'package:opencv_4/factory/imagefilter/sqrboxfilter_factory.dart';
-import 'package:opencv_4/factory/miscellaneoustransform/adaptivethreshold_factory.dart';
-import 'package:opencv_4/factory/miscellaneoustransform/distancetransform_factory.dart';
-import 'package:opencv_4/factory/miscellaneoustransform/threshold_factory.dart';
-import 'package:opencv_4/factory/pathfrom.dart';
 import 'package:image/image.dart' as IMG;
 import 'package:flutter/foundation.dart';
 
@@ -42,39 +23,41 @@ class ScreenSegmentOcrScan extends StatefulWidget {
   _SegmentOcrScanState createState() => _SegmentOcrScanState();
 }
 
-class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindingObserver {
-  // 카메라 데이터
-  CameraController? controller;
-  bool _isCameraInitialized = false;
-  final resolutionPresets = ResolutionPreset.values;
-  ResolutionPreset currentResolutionPreset = ResolutionPreset.high;
+class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
+    with WidgetsBindingObserver {
+  // === OpenCV FFI ===
+  final dylib = Platform.isAndroid
+      ? DynamicLibrary.open("libOpenCV_ffi.so")
+      : DynamicLibrary.process();
 
-  // Tesseract 데이터
+  // === 카메라 데이터 ===
+  CameraController? _controller;
+  late Future<void> _initializeControllerFuture;
+  bool _isCameraInitialized = false;
+  bool _isStreaming = false;
+  Image _img = Image.asset('assets/default.jpg');
+  Image _old = Image.asset('assets/default.jpg');
+  final resolutionPresets = ResolutionPreset.values;
+  ResolutionPreset currentResolutionPreset = ResolutionPreset.low;
+
+  // === Tesseract 데이터 ===
   String _ocrText = '';
-  String _ocrHocr = '';
-  Map<String, String> tessimgs = {
-    "kor": "https://raw.githubusercontent.com/khjde1207/tesseract_ocr/master/example/assets/test1.png",
-    "en": "https://tesseract.projectnaptha.com/img/eng_bw.png",
-    "ch_sim": "https://tesseract.projectnaptha.com/img/chi_sim.png",
-    "ru": "https://tesseract.projectnaptha.com/img/rus.png",
-  };
-  var LangList = ["kor", "eng", "deu", "chi_sim", "seven_seg"];
+  // var LangList = ["kor", "eng", "deu", "chi_sim", "seven_seg"];
   var selectList = ["seven_seg"];
   String path = "";
   bool bload = false;
-
   bool bDownloadtessFile = false;
-  // "https://img1.daumcdn.net/thumb/R1280x0/?scode=mtistory2&fname=https%3A%2F%2Fblog.kakaocdn.net%2Fdn%2FqCviW%2FbtqGWTUaYLo%2FwD3ZE6r3ARZqi4MkUbcGm0%2Fimg.png";
-  var urlEditController = TextEditingController()..text = "http://192.168.5.200:3000/index.jpg";
 
   Future<void> writeToFile(ByteData data, String path) {
     final buffer = data.buffer;
-    return new File(path).writeAsBytes(buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+    return new File(path).writeAsBytes(
+        buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
   }
 
   void runFilePiker() async {
     // android && ios only
-    final pickedFile = await ImagePicker().getImage(source: ImageSource.gallery);
+    final pickedFile =
+        await ImagePicker().getImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       _ocr(pickedFile.path);
     }
@@ -83,7 +66,7 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
   Future<void> doOcr() async {
     bload = true;
 
-    var captureFile = await controller!.takePicture();
+    var captureFile = await _controller!.takePicture();
     _ocrText = captureFile.path;
     await imagePreprocess(_ocrText);
     await _ocr(_ocrText);
@@ -116,14 +99,14 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
     int offsetY = (src.height - min(src.width, src.height)) ~/ 2;
 
     IMG.Image destImage =
-    IMG.copyCrop(src, offsetX, offsetY, cropSize, cropSize);
+        IMG.copyCrop(src, offsetX, offsetY, cropSize, cropSize);
 
     // if (flip) {
     //   destImage = IMG.flipVertical(destImage);
     // }
 
     var jpg = IMG.encodeJpg(destImage);
-    await File(filePath).writeAsBytes(jpg); 
+    await File(filePath).writeAsBytes(jpg);
   }
 
   Future<void> _ocr(url) async {
@@ -149,12 +132,9 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
 
     setState(() {});
 
-    _ocrText =
-    await FlutterTesseractOcr.extractText(url, language: langs, args: {
-      "preserve_interword_spaces": "1",
-      "psm": "6",
-      "oem": "3"
-    });
+    _ocrText = await FlutterTesseractOcr.extractText(url,
+        language: langs,
+        args: {"preserve_interword_spaces": "1", "psm": "6", "oem": "3"});
     //  ========== Test performance  ==========
     // DateTime before1 = DateTime.now();
     // print('init : start');
@@ -198,13 +178,13 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
 
   @override
   void dispose() {
-    controller?.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final CameraController? cameraController = controller;
+    final CameraController? cameraController = _controller;
 
     // 초기화 하기 전에 상태가 바뀌는 경우
     if (cameraController == null || !cameraController.value.isInitialized) {
@@ -234,20 +214,24 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
             children: [
               Stack(
                 children: [
-                  _isCameraInitialized ? AspectRatio(
-                    aspectRatio: 1,
-                    child: ClipRect(
-                      child: Transform.scale(
-                        scale: controller!.value.aspectRatio,
-                        child: Center(
-                          child: AspectRatio(
-                            aspectRatio: 1 / controller!.value.aspectRatio,
-                            child: controller!.buildPreview(),
-                          ), // this is my CameraPreview
-                        ),
-                      ),
-                    ),
-                  ) : Container(),
+                  _isCameraInitialized
+                      ? AspectRatio(
+                          aspectRatio: 1,
+                          child: ClipRect(
+                            child: Transform.scale(
+                              scale: _controller!.value.aspectRatio,
+                              child: Center(
+                                child: AspectRatio(
+                                  aspectRatio:
+                                      1 / _controller!.value.aspectRatio,
+                                  child: /*_controller!.buildPreview()*/ Stack(
+                                      children: [_old, _img]),
+                                ), // this is my CameraPreview
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(),
                   CustomPaint(
                     foregroundPainter: SegmentOcrScanPainter(),
                     child: AspectRatio(
@@ -275,51 +259,53 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
                   ),
                 ],
               ),
-
               Padding(
                 padding: const EdgeInsets.fromLTRB(10, 5, 10, 0),
                 child: Row(
                   children: [
                     Expanded(
                       child: ElevatedButton(
-                          onPressed: bload ? null : () {
-                            doOcr();
-                          },
-                          child: const Text("📷 인식")
-                      ),
+                          onPressed: bload
+                              ? null
+                              : () {
+                                  doOcr();
+                                },
+                          child: const Text("📷 인식")),
                     ),
                   ],
                 ),
               ),
               Expanded(
                   child: ListView(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-                        child: bload
-                          ? Column(children: const [CircularProgressIndicator()])
-                          : Text(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                    child: bload
+                        ? Column(children: const [CircularProgressIndicator()])
+                        : Text(
                             '$_ocrText',
                           ),
-                      ),
-                      path.isEmpty
-                        ? Container()
-                        : path.contains("http")
+                  ),
+                  path.isEmpty
+                      ? Container()
+                      : path.contains("http")
                           ? Image.network(path)
                           : Image.file(File(path)),
-                    ],
-                  )
-              )
+                ],
+              ))
             ],
           ),
           Container(
             color: Colors.black26,
             child: bDownloadtessFile
                 ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [CircularProgressIndicator(), Text('download Trained language files')],
-                ))
+                    child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      Text('download Trained language files')
+                    ],
+                  ))
                 : SizedBox(),
           )
         ],
@@ -328,18 +314,63 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
       floatingActionButton: kIsWeb
           ? Container()
           : FloatingActionButton(
-        onPressed: () {
-          runFilePiker();
-          // _ocr("");
-        },
-        tooltip: 'OCR',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+              onPressed: () async {
+                // runFilePiker();
+                // Take the Picture in a try / catch block. If anything goes wrong,
+                // catch the error.
+                try {
+                  // Ensure that the camera is initialized.
+                  await _initializeControllerFuture;
+                  if (_isStreaming) {
+                    await _controller!.stopImageStream();
+                    print("Stopped");
+                    setState(() => _isStreaming = false);
+                  } else {
+                    setState(() => _isStreaming = true);
+                    print("Starting");
+
+                    await _controller!
+                        .startImageStream((CameraImage availableImage) async {
+                      Pointer<Uint32> s = malloc.allocate(1);
+                      s[0] = availableImage.planes[0].bytes.length;
+                      Pointer<Uint8> p = malloc.allocate(3 *
+                          availableImage.height *
+                          availableImage
+                              .width); // Taking extra space for buffer
+                      p
+                          .asTypedList(s[0])
+                          .setRange(0, s[0], availableImage.planes[0].bytes);
+
+                      final imageffi = dylib.lookupFunction<
+                          Void Function(Pointer<Uint8>, Pointer<Uint32>),
+                          void Function(
+                              Pointer<Uint8>, Pointer<Uint32>)>('image_ffi');
+                      imageffi(p, s);
+
+                      if (mounted) {
+                        setState(() {
+                          _old = _img;
+                          _img = Image.memory(p.asTypedList(s[0]));
+                        });
+                      }
+
+                      malloc.free(p);
+                      malloc.free(s);
+                    });
+                  }
+                } catch (e) {
+                  // If an error occurs, log the error to the console.
+                  print(e);
+                }
+              },
+              tooltip: 'OCR',
+              child: const Icon(Icons.lens),
+            ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 
   void onNewCameraSelected(CameraDescription cameraDescription) async {
-    final previousCameraController = controller;
+    final previousCameraController = _controller;
     // 카메라 컨트롤러 인스턴스화
     final CameraController cameraController = CameraController(
       cameraDescription,
@@ -353,7 +384,7 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
     // 새 컨트롤러로 교체
     if (mounted) {
       setState(() {
-        controller = cameraController;
+        _controller = cameraController;
       });
     }
 
@@ -363,18 +394,18 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan> with WidgetsBindi
     });
 
     // 컨트롤러 초기화
-    try {
-      await cameraController.initialize();
-    } on CameraException catch (e) {
-      // TODO: 더 나은 로깅 옵션 찾기
+    _initializeControllerFuture = cameraController.initialize();
+    _initializeControllerFuture.catchError((e) {
       print('Error initializing camera: $e');
-    }
+    });
 
-    // 준비 완료 플래그
-    if (mounted) {
-      setState(() {
-        _isCameraInitialized = controller!.value.isInitialized;
-      });
-    }
+    _initializeControllerFuture.then((value) {
+      // 준비 완료 플래그
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = _controller!.value.isInitialized;
+        });
+      }
+    });
   }
 }
