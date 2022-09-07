@@ -330,7 +330,7 @@ void Reverse(Mat img) {
 }
 
 void ffi_ocr_preprocess (uchar *buf, uint *size) {
-    vector<uchar> vec(buf, buf + size[0]);
+  vector<uchar> vec(buf, buf + size[0]);
 	Mat img = imdecode(Mat(vec), IMREAD_COLOR);
 	double ratio = 500 / double(img.size().height);
 	double width = img.size().width * (500 / double(img.size().height));
@@ -363,38 +363,35 @@ void ffi_ocr_preprocess (uchar *buf, uint *size) {
 		hconcat(img2, img3, result);
 		threshold(result, result, 127, 255, THRESH_BINARY);
 
-        for (int i = 0; i < rects1.size(); i++) {
-            Rect temp(int(rects1[i].x / ratio), int(rects1[i].y / ratio)
-                , int(rects1[i].width / ratio), int(rects1[i].height / ratio));
-            rects1[i] = temp;
-        }
+		for (int i = 0; i < rects1.size(); i++) {
+			Rect temp(int(rects1[i].x / ratio), int(rects1[i].y / ratio)
+				, int(rects1[i].width / ratio), int(rects1[i].height / ratio));
+			rects1[i] = temp;
+		}
 
-        vector <uchar> retv;
-        imencode(".jpg", result, retv);
-        memcpy(buf, retv.data(), retv.size());
-        size[0] = retv.size();
-        size[1] = rects1[0].x;
-        size[2] = rects1[0].y;
-        size[3] = rects1[0].width;
-        size[4] = rects1[0].height;
-        size[5] = rects1[1].x;
-        size[6] = rects1[1].y;
-        size[7] = rects1[1].width;
-        size[8] = rects1[1].height;
+		vector <uchar> retv;
+		imencode(".jpg", result, retv);
+		memcpy(buf, retv.data(), retv.size());
+		size[0] = retv.size();
+		size[1] = rects1[0].x;
+		size[2] = rects1[0].y;
+		size[3] = rects1[0].width;
+		size[4] = rects1[0].height;
+		size[5] = rects1[1].x;
+		size[6] = rects1[1].y;
+		size[7] = rects1[1].width;
+		size[8] = rects1[1].height;
 
-        img2.release();
-        img3.release();
-        result.release();
-        retv.clear();
+		img2.release();
+		img3.release();
+		result.release();
+		retv.clear();
+	} else {
+		for(int i = 0; i <= 8; i++)
+			size[i] = 0;
 	}
-    else{
-        for(int i = 0; i <= 8; i++)
-            size[i] = 0;
-    }
-    v.clear();
-    rects1.clear();
-    img.release();
-    img1.release();
-
-
+	v.clear();
+	rects1.clear();
+	img.release();
+	img1.release();
 }
