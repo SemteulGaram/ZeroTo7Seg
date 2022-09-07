@@ -39,12 +39,12 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
   // ! 임시 코드. 나중에 빈 배열로 바꿀 것
   List<OcrDrawDto> ocrDrawDtoList = [
     OcrDrawDto(
-      rect: const Rect.fromLTWH(50, 200, 200, 100),
-      text: '127',
+      rect: const Rect.fromLTWH(0, 0, 0, 0),
+      text: '',
     ),
     OcrDrawDto(
-      rect: const Rect.fromLTWH(80, 500, 100, 70),
-      text: '74',
+      rect: const Rect.fromLTWH(0, 0, 0, 0),
+      text: '',
     ),
   ];
   // 화면을 가리는 로딩창
@@ -54,7 +54,6 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
   // segment_ocr_scan/ocr.dart 파일에 OCR 요청 방법 (이 메소드는 이전 방법임 DEPRECATED)
   Future<void> doOcr() async {
     bload = true;
-
     var captureFile = await _controller!.takePicture();
     await ocrManager.ocrPreprocess(captureFile.path);
     _ocrText = await ocrManager.ocr(captureFile.path);
@@ -70,39 +69,68 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
 
     print(result.need_to_OCR_img_path);
     _ocrText = await ocrManager.ocr(result.need_to_OCR_img_path);
-
+    print(_ocrText);
+    // 스페이스바 인식 다 제거
+    _ocrText = _ocrText.replaceAll(" ", "");
+    // SYS, DIA
+    String sys = "";
+    String dia = "";
+    //OCR 인식이 제대로 돼서 화면에 그릴 지, 말 지
+    bool is_draw = false;
     //OCR 결과 출력
     print(_ocrText);
-
+    //첫 자리 1이 인식이 안된  경우.
+    //SYS가 애초에 2자리 인 경우 코드는 다시 짜야됨.
+    // String to int 로 값 크기 비교 해야함....
+    if (_ocrText.length == 4) {
+      sys = "1" + _ocrText[0] + _ocrText[1];
+      dia = _ocrText[2] + _ocrText[3];
+      is_draw = true;
+    }
+    //제대로 5자리가 인식이 된 경우.
+    else if (_ocrText.length >= 5) {
+      sys = _ocrText[0] + _ocrText[1] + _ocrText[2];
+      dia = _ocrText[3] + _ocrText[4];
+      is_draw = true;
+    }
+    //위에 해당이 안되면 그리지 않기.
+    else
+      is_draw = false;
+    print(sys);
+    print(dia);
     print("SEG_RECT ${result.segmentAreaRect[0]}");
     print("SEG_RECT ${result.segmentAreaRect[1]}");
+    if (is_draw) {
+      List<OcrDrawDto> ocrDrawList = [];
+      for (var i = 0; i < result.segmentAreaRect.length; i++) {
+        ocrDrawList.add(OcrDrawDto(
+          text: i == 0 ? sys : dia,
+          rect: Rect.fromLTWH(
+              result.segmentAreaRect[i].left * 0.55,
+              result.segmentAreaRect[i].top * 0.55,
+              result.segmentAreaRect[i].width * 0.55,
+              result.segmentAreaRect[i].height * 0.55),
+        ));
+      }
+      setState(() {
+        // ! 작동 안될때의 임시 예제 코드 !
+        /*
+        ocrDrawDtoList = [
+          OcrDrawDto(
+            rect: const Rect.fromLTWH(50, 200, 200, 100),
+            text: '127',
+          ),
+          OcrDrawDto(
+            rect: const Rect.fromLTWH(80, 500, 100, 70),
+            text: '74',
+          ),
+        ];
+        // ! 작동되면 아래 코드를 대신 이용할 것 !
 
-    List<OcrDrawDto> ocrDrawList = [];
-    for (var i = 0; i < result.segmentAreaRect.length; i++) {
-      ocrDrawList.add(OcrDrawDto(
-        text: _ocrText,
-        rect: Rect.fromLTWH(
-            result.segmentAreaRect[i].left,
-            result.segmentAreaRect[i].top,
-            result.segmentAreaRect[i].width,
-            result.segmentAreaRect[i].height),
-      ));
+         */
+        ocrDrawDtoList = ocrDrawList;
+      });
     }
-    setState(() {
-      // ! 작동 안될때의 임시 예제 코드 !
-      ocrDrawDtoList = [
-        OcrDrawDto(
-          rect: const Rect.fromLTWH(50, 200, 200, 100),
-          text: '127',
-        ),
-        OcrDrawDto(
-          rect: const Rect.fromLTWH(80, 500, 100, 70),
-          text: '74',
-        ),
-      ];
-      // ! 작동되면 아래 코드를 대신 이용할 것 !
-      // ocrDrawDtoList = ocrDrawList;
-    });
     bload = false;
   }
 
