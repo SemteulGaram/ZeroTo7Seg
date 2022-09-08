@@ -5,11 +5,11 @@
 using namespace cv;
 using namespace std;
 
-/*
-* 7segment의 모서리를 따고, 사각형으로 바인딩. 너무 작은/큰 사각형은 배제
-* parameter : img = 이진화 전처리된 이미지
-* return : 사각형
-*/
+/**
+ * 7segment의 모서리를 따고, 사각형으로 바인딩. 너무 작은/큰 사각형은 배제
+ * parameter : img = 이진화 전처리된 이미지
+ * return : 사각형
+ */
 vector<Rect> calculate_rectangle_from_contours(Mat img) {
 	vector<vector<Point>> contours;
 	findContours(img, contours, RETR_LIST, CHAIN_APPROX_NONE);
@@ -34,10 +34,10 @@ vector<Rect> calculate_rectangle_from_contours(Mat img) {
 	return result;
 }
 
-/*
-* 겹치는 영역이 있는 사각형들을 하나로 합침
-* return : 겹처진 사각형들을 가지는 vector
-*/
+/**
+ * 겹치는 영역이 있는 사각형들을 하나로 합침
+ * return : 겹처진 사각형들을 가지는 vector
+ */
 vector<Rect> Union_Intersect_Rectangles(vector<Rect> rects) {
 	int index1 = 0;
 	while (index1 < rects.size()) {
@@ -58,26 +58,26 @@ vector<Rect> Union_Intersect_Rectangles(vector<Rect> rects) {
 	return rects;
 }
 
-/*
-*사각형이 서로 근접해 있는 지 구한다.
-* 각 사각형들의 최대,최소의 거리가 임계값 보다 낮으면 근접해 있다.
-* threshold_value : 사각형들이 근접해 있는 지 정할 임계값.
-* return : 두 사각형이 근접해 있는가?
-*/
+/**
+ *사각형이 서로 근접해 있는 지 구한다.
+ * 각 사각형들의 최대,최소의 거리가 임계값 보다 낮으면 근접해 있다.
+ * threshold_value : 사각형들이 근접해 있는 지 정할 임계값.
+ * return : 두 사각형이 근접해 있는가?
+ */
 bool Is_near(Rect r1, Rect r2) {
 	int threshold_value = 20;
 	Rect r(r1.x, r1.y - threshold_value, r1.width, r1.height + threshold_value);
 	return !(r & r2).empty();
 }
 
-/*
-* 사각형 집합에서 7sgements를 구성하는 segment들 찾는다.
-* 세로 segment 1개 = 0.2~0.45 종횡비
-* 가로 + 세로 segments = 0.6~1.3 종횡비
-* 세로 segment 2개(숫자 1) = 0.1~0.2 종횡비
-* 위 종횡비를 갖는 사각형들이 서로 근접해 있으면 하나의 세그먼트로 인식
-* 위 사각형들이 서로 범위 안에 있어도 서로의 넓이가 크게 차이나는 경우 세그먼트가 아님
-*/
+/**
+ * 사각형 집합에서 7sgements를 구성하는 segment들 찾는다.
+ * 세로 segment 1개 = 0.2~0.45 종횡비
+ * 가로 + 세로 segments = 0.6~1.3 종횡비
+ * 세로 segment 2개(숫자 1) = 0.1~0.2 종횡비
+ * 위 종횡비를 갖는 사각형들이 서로 근접해 있으면 하나의 세그먼트로 인식
+ * 위 사각형들이 서로 범위 안에 있어도 서로의 넓이가 크게 차이나는 경우 세그먼트가 아님
+ */
 vector<Rect> Union_near_segments(vector<Rect> rects) {
 	int index1 = 0;
 	while (index1 < rects.size()) {
@@ -118,12 +118,12 @@ vector<Rect> Union_near_segments(vector<Rect> rects) {
 	return rects;
 }
 
-/*
-* 7segment 비율이 아닌 사각형 삭제
-* 7segment 숫자 1 = 0.1~0.3
-* 그 이외의 숫자 = 0.3~0.7
-* return : vector<Rect>
-*/
+/**
+ * 7segment 비율이 아닌 사각형 삭제
+ * 7segment 숫자 1 = 0.1~0.3
+ * 그 이외의 숫자 = 0.3~0.7
+ * return : vector<Rect>
+ */
 vector<Rect> delete_not_segments(vector<Rect> rects) {
 	int index = 0;
 	while (index < rects.size()) {
@@ -137,11 +137,11 @@ vector<Rect> delete_not_segments(vector<Rect> rects) {
 	return rects;
 }
 
-/*
-* 세그먼트의 넓이의 평균을 구해 평균값보다 일정이상 낮은 세그먼트들 삭제
-* 7segment 숫자 1의 경우 평균보다 많이 낮아지므로 평균 넓이에 임계값 곱함
-* return : 7segments vector<Rect>
-*/
+/**
+ * 세그먼트의 넓이의 평균을 구해 평균값보다 일정이상 낮은 세그먼트들 삭제
+ * 7segment 숫자 1의 경우 평균보다 많이 낮아지므로 평균 넓이에 임계값 곱함
+ * return : 7segments vector<Rect>
+ */
 vector<Rect> delete_small_segments(vector<Rect> segments) {
 
 	int index = 0;
@@ -161,9 +161,9 @@ vector<Rect> delete_small_segments(vector<Rect> segments) {
 	return segments;
 }
 
-/*
-* 같은 줄에 위치하는 7segment들 합치기
-*/
+/**
+ * 같은 줄에 위치하는 7segment들 합치기
+ */
 vector<Rect> merge_7segment_into_line(vector<Rect> segments) {
 	int index1 = 0;
 	while (index1 < segments.size()) {
@@ -198,9 +198,9 @@ vector<Rect> merge_7segment_into_line(vector<Rect> segments) {
 	return segments;
 }
 
-/*
-* OCR로 인식할 혈압 7segment만 남기고 나머지 삭제
-*/
+/**
+ * OCR로 인식할 혈압 7segment만 남기고 나머지 삭제
+ */
 vector<Rect> delete_useless_segments(vector<Rect> lines) {
 	int index = 0;
 	while(index < lines.size()) {
@@ -229,13 +229,13 @@ vector<Rect> delete_useless_segments(vector<Rect> lines) {
 	return lines;
 }
 
-/*
-* 이미지 전처리
-* 1. 이미지를 회색조로 변경
-* 2. 회색조 이미지에 블러를 적용하여 경계들을 모호하게 함.
-* 3. 블러 처리된 이미지를 threshold를 이용하여 이진화.
-* return : 이진화된 이미지
-*/
+/**
+ * 이미지 전처리
+ * 1. 이미지를 회색조로 변경
+ * 2. 회색조 이미지에 블러를 적용하여 경계들을 모호하게 함.
+ * 3. 블러 처리된 이미지를 threshold를 이용하여 이진화.
+ * return : 이진화된 이미지의 새 복사본
+ */
 Mat image_preprocess(Mat img, int threshold_value) {
 	Mat temp;
 	img.copyTo(temp);
@@ -245,13 +245,12 @@ Mat image_preprocess(Mat img, int threshold_value) {
 	return temp;
 }
 
-/*
-* 이미지 전처리에 사용할 가장 적합한 threshold 값 선택
-* 1번 threshold 값 : 연속적으로 일정한 7segments의 개수의 빈도값을 가지는 구간의 threshold 값 평균
-* 2번 threshold 값: 가장 많은 7segment의 개수를 가지는 구간의 threshold값 평균
-* return : 2개의 threshold 값이 들어있는 vector
-*/
-
+/**
+ * 이미지 전처리에 사용할 가장 적합한 threshold 값 선택
+ * 1번 threshold 값 : 연속적으로 일정한 7segments의 개수의 빈도값을 가지는 구간의 threshold 값 평균
+ * 2번 threshold 값: 가장 많은 7segment의 개수를 가지는 구간의 threshold값 평균
+ * return : 2개의 threshold 값이 들어있는 vector
+ */
 vector<int> find_best_threshold_img(Mat img) {
 	int threshold_value = 32;
 	vector<int> pre_value = { 0,0,0 };
@@ -284,7 +283,7 @@ vector<int> find_best_threshold_img(Mat img) {
 		}
 		threshold_value += 2;
 
-		rects.clear();
+		// rects.clear();
 		img2.release();
 	}
 	threshold_results.push_back(pre_value);
@@ -330,11 +329,15 @@ void Reverse(Mat img) {
 }
 
 void ffi_ocr_preprocess (uchar *buf, uint *size) {
+	// Calc image Metadata
   vector<uchar> vec(buf, buf + size[0]);
 	Mat img = imdecode(Mat(vec), IMREAD_COLOR);
-	double ratio = 500 / double(img.size().height);
-	double width = img.size().width * (500 / double(img.size().height));
-	resize(img, img, Size(int(img.size().width * (500 / double(img.size().height))), 500));
+	Size imgSize = img.size();
+	double ratio = 500 / double(imgSize.height);
+	double width = img.size().width * (500 / double(imgSize.height));
+
+	// Resize image (auto * 500)
+	resize(img, img, Size(int(imgSize.width * (500 / double(imgSize.height))), 500));
 	vector<int> v = find_best_threshold_img(img);
 
 	Mat img1 = image_preprocess(img,v[0]);
@@ -371,16 +374,16 @@ void ffi_ocr_preprocess (uchar *buf, uint *size) {
 
 		vector <uchar> retv;
 		imencode(".jpg", result, retv);
-		memcpy(buf, retv.data(), retv.size());
-		size[0] = retv.size();
-		size[1] = rects1[0].x;
-		size[2] = rects1[0].y;
-		size[3] = rects1[0].width;
-		size[4] = rects1[0].height;
-		size[5] = rects1[1].x;
-		size[6] = rects1[1].y;
-		size[7] = rects1[1].width;
-		size[8] = rects1[1].height;
+		// memcpy(buf, retv.data(), retv.size());
+		// size[0] = retv.size();
+		// size[1] = rects1[0].x;
+		// size[2] = rects1[0].y;
+		// size[3] = rects1[0].width;
+		// size[4] = rects1[0].height;
+		// size[5] = rects1[1].x;
+		// size[6] = rects1[1].y;
+		// size[7] = rects1[1].width;
+		// size[8] = rects1[1].height;
 
 		img2.release();
 		img3.release();

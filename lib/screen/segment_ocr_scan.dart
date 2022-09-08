@@ -76,7 +76,7 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
     String sys = "";
     String dia = "";
     //OCR 인식이 제대로 돼서 화면에 그릴 지, 말 지
-    bool is_draw = false;
+    bool isDraw = false;
     //OCR 결과 출력
     print(_ocrText);
     //첫 자리 1이 인식이 안된  경우.
@@ -85,22 +85,23 @@ class _SegmentOcrScanState extends State<ScreenSegmentOcrScan>
     if (_ocrText.length == 4) {
       sys = "1" + _ocrText[0] + _ocrText[1];
       dia = _ocrText[2] + _ocrText[3];
-      is_draw = true;
+      isDraw = true;
     }
     //제대로 5자리가 인식이 된 경우.
     else if (_ocrText.length >= 5) {
       sys = _ocrText[0] + _ocrText[1] + _ocrText[2];
       dia = _ocrText[3] + _ocrText[4];
-      is_draw = true;
+      isDraw = true;
     }
     //위에 해당이 안되면 그리지 않기.
-    else
-      is_draw = false;
+    else {
+      isDraw = false;
+    }
     print(sys);
     print(dia);
     print("SEG_RECT ${result.segmentAreaRect[0]}");
     print("SEG_RECT ${result.segmentAreaRect[1]}");
-    if (is_draw) {
+    if (isDraw) {
       List<OcrDrawDto> ocrDrawList = [];
       for (var i = 0; i < result.segmentAreaRect.length; i++) {
         ocrDrawList.add(OcrDrawDto(
