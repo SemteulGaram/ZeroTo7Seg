@@ -237,12 +237,14 @@ vector<Rect> delete_useless_segments(vector<Rect> lines) {
  * return : 이진화된 이미지의 새 복사본
  */
 Mat image_preprocess(Mat img, int threshold_value) {
-	Mat temp;
-	img.copyTo(temp);
-	cvtColor(temp, temp, COLOR_BGR2GRAY);
-	GaussianBlur(temp, temp, Size(5, 5), 0, 0);
-	threshold(temp, temp, threshold_value, 255, THRESH_BINARY);
-	return temp;
+	Mat img_tmp1;
+	Mat img_tmp2;
+	// img.copyTo(temp);
+	cvtColor(img, img_tmp1, COLOR_BGR2GRAY);
+	GaussianBlur(img_tmp1, img_tmp2, Size(5, 5), 0, 0);
+	threshold(img_tmp2, img_tmp1, threshold_value, 255, THRESH_BINARY);
+	img_tmp2.release();
+	return img_tmp1;
 }
 
 /**
@@ -330,32 +332,35 @@ void Reverse(Mat img) {
 
 void ffi_ocr_preprocess (uchar *buf, uint *size) {
 	// Calc image Metadata
+	/*
   vector<uchar> vec(buf, buf + size[0]);
 	Mat img = imdecode(Mat(vec), IMREAD_COLOR);
+	
 	Size imgSize = img.size();
 	double ratio = 500 / double(imgSize.height);
 	double width = img.size().width * (500 / double(imgSize.height));
 
 	// Resize image (auto * 500)
-	resize(img, img, Size(int(imgSize.width * (500 / double(imgSize.height))), 500));
+	Mat img_resized;
+	resize(img, img_resized, Size(int(imgSize.width * (500 / double(imgSize.height))), 500));
 	vector<int> v = find_best_threshold_img(img);
 
-	Mat img1 = image_preprocess(img,v[0]);
+	Mat img_processed = image_preprocess(img_resized, v[0]);
 	vector<Rect> rects1 = delete_useless_segments(
 		merge_7segment_into_line(
 			delete_small_segments(
 				delete_not_segments(
 					Union_near_segments(
 						Union_Intersect_Rectangles(
-							calculate_rectangle_from_contours(img1)))))));
+							calculate_rectangle_from_contours(img_processed)))))));
 
 
 
 
 	if (rects1.size() == 2) {
-		Mat img2 = img1(Range(rects1[0].y, rects1[0].height + rects1[0].y), Range(rects1[0].x, rects1[0].width + rects1[0].x));
+		Mat img2 = img_processed(Range(rects1[0].y, rects1[0].height + rects1[0].y), Range(rects1[0].x, rects1[0].width + rects1[0].x));
 		resize(img2, img2, Size(int(img2.size().width * (28 / double(img2.size().height))), 28));
-		Mat img3 = img1(Range(rects1[1].y, rects1[1].height + rects1[1].y), Range(rects1[1].x, rects1[1].width + rects1[1].x));
+		Mat img3 = img_processed(Range(rects1[1].y, rects1[1].height + rects1[1].y), Range(rects1[1].x, rects1[1].width + rects1[1].x));
 		resize(img3, img3, Size(int(img3.size().width * (28 / double(img3.size().height))), 28));
 
 		Reverse(img2);
@@ -371,7 +376,7 @@ void ffi_ocr_preprocess (uchar *buf, uint *size) {
 				, int(rects1[i].width / ratio), int(rects1[i].height / ratio));
 			rects1[i] = temp;
 		}
-
+		
 		vector <uchar> retv;
 		imencode(".jpg", result, retv);
 		// memcpy(buf, retv.data(), retv.size());
@@ -396,5 +401,5 @@ void ffi_ocr_preprocess (uchar *buf, uint *size) {
 	v.clear();
 	rects1.clear();
 	img.release();
-	img1.release();
+	*/
 }

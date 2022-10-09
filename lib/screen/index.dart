@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:zerolens100/screen/about.dart';
 import 'package:zerolens100/screen/camera.dart';
-import 'package:zerolens100/screen/segment_ocr_scan.dart';
 
 genButtonStyle() {
   return ButtonStyle(
-    foregroundColor: MaterialStateProperty.resolveWith((Set<MaterialState> states) {
+    foregroundColor:
+        MaterialStateProperty.resolveWith((Set<MaterialState> states) {
       return states.contains(MaterialState.disabled) ? null : Colors.white;
     }),
-    backgroundColor: MaterialStateProperty.resolveWith((Set<MaterialState> states) {
+    backgroundColor:
+        MaterialStateProperty.resolveWith((Set<MaterialState> states) {
       return states.contains(MaterialState.disabled) ? null : Colors.pink;
     }),
   );
@@ -35,35 +35,12 @@ class ScreenIndex extends StatelessWidget {
                   Expanded(
                     child: TextButton(
                       style: genButtonStyle(),
-                      child: const Text('📷 카메라'),
+                      child: const Text('📷 세그먼트 OCR 카메라'),
                       onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const ScreenCamera()));
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      style: genButtonStyle(),
-                      child: const Text('📜 OCR'),
-                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const ScreenSegmentOcrScan()));
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      style: genButtonStyle(),
-                      child: const Text('💻 About'),
-                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const ScreenAbout()));
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const ScreenCamera()));
                       },
                     ),
                   ),

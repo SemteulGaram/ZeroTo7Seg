@@ -39,6 +39,7 @@ dependencies:
   flutter_tesseract_ocr: ^0.4.20
   image: ^3.2.0
   image_picker: ^0.8.5+3
+  path_provider: ^2.0.1
 
 dev_dependencies:
   flutter_test:
