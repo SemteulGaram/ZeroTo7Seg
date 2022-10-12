@@ -126,43 +126,39 @@ class _ScreenCameraState extends State<ScreenCamera>
     }
 
     _ocrText = await ocrManager.ocr(result.need_to_OCR_img_path);
-    // 스페이스바 인식 다 제거
+
+    // 스페이스바 인식 다 제거,
+    // 추후 정규표현식 사용하여 숫자 이외에 다 제거하는 식으로 변경해야함
     _ocrText = _ocrText.replaceAll(" ", "");
+
     // SYS, DIA
-    String sys = "";
-    String dia = "";
+    var ocrTextSplit = _ocrText.split("\n");
+    if (ocrTextSplit.length < 2) {
+      return;
+    }
+    String sys = ocrTextSplit[0];
+    String dia = ocrTextSplit[1];
+
     //OCR 인식이 제대로 돼서 화면에 그릴 지, 말 지
-    bool isDraw = false;
+    bool is_draw = false;
+    if (sys.length >= 2 && dia.length >= 2) is_draw = true;
     //OCR 결과 출력
-    log.info('7seg-OCR Result: $_ocrText');
-    //첫 자리 1이 인식이 안된  경우.
-    //SYS가 애초에 2자리 인 경우 코드는 다시 짜야됨.
-    // String to int 로 값 크기 비교 해야함....
-    if (_ocrText.length == 4) {
-      sys = "1" + _ocrText[0] + _ocrText[1];
-      dia = _ocrText[2] + _ocrText[3];
-      isDraw = true;
-    }
-    //제대로 5자리가 인식이 된 경우.
-    else if (_ocrText.length >= 5) {
-      sys = _ocrText[0] + _ocrText[1] + _ocrText[2];
-      dia = _ocrText[3] + _ocrText[4];
-      isDraw = true;
-    }
-    //위에 해당이 안되면 그리지 않기.
-    else {
-      isDraw = false;
-    }
-    if (isDraw) {
+    print("//");
+    print("//");
+    print("//");
+    print(sys);
+    print(dia);
+
+    if (is_draw) {
       List<OcrDrawDto> ocrDrawList = [];
       for (var i = 0; i < result.segmentAreaRect.length; i++) {
         ocrDrawList.add(OcrDrawDto(
           text: i == 0 ? sys : dia,
           rect: Rect.fromLTWH(
-              result.segmentAreaRect[i].left * 0.55,
-              result.segmentAreaRect[i].top * 0.55,
-              result.segmentAreaRect[i].width * 0.55,
-              result.segmentAreaRect[i].height * 0.55),
+              result.segmentAreaRect[i].left * 1.15,
+              result.segmentAreaRect[i].top * 1.15,
+              result.segmentAreaRect[i].width * 1.15,
+              result.segmentAreaRect[i].height * 1.15),
         ));
       }
       setState(() {
@@ -178,7 +174,9 @@ class _ScreenCameraState extends State<ScreenCamera>
             text: '74',
           ),
         ];
-        */
+        // ! 작동되면 아래 코드를 대신 이용할 것 !
+
+         */
         ocrDrawDtoList = ocrDrawList;
       });
     }
