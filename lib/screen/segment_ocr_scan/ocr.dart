@@ -76,6 +76,8 @@ class SegmentOcrScanOcr {
     Pointer<Int32> nativeSize = malloc.allocate<Int32>(1);
     Pointer<Uint8> nativeBuffer = malloc.allocate<Uint8>(3 * width * height);
     nativeSize[0] = bytes.length;
+    print(width);
+    print(height);
     print(3 * width * height);
     print(nativeSize[0]);
 
@@ -87,7 +89,7 @@ class SegmentOcrScanOcr {
 
     // FFI 호출
     var res = ffiOcrPreprocess(nativeBuffer, nativeSize);
-    print(res.asTypedList(8).toString());
+    print(res.asTypedList(12).toString());
 
     // 반환값 정리
     /*
@@ -101,35 +103,48 @@ class SegmentOcrScanOcr {
     final segmentAreaRect;
 
     bool nullFlag = false;
-    if (nativeSize[0] != 0) {
+    if (res[0] > 1.0 || res[2] > 1.0) {
       final pathOfImage = await File(imgPath);
       final Uint8List result_img = nativeBuffer.asTypedList(nativeSize[0]);
       await pathOfImage.writeAsBytes(result_img);
 
-      double x1, y1, w1, h1, x2, y2, w2, h2;
-      x1 = res[0];
-      y1 = res[1];
-      w1 = res[2];
-      h1 = res[3];
-      x2 = res[4];
-      y2 = res[5];
-      w2 = res[6];
-      h2 = res[7];
-      // segment 인식 실패시 rectangle 값이 0으로 채워짐
-      segmentAreaRect = [
-        Rect.fromLTWH(
-          x1,
-          y1,
-          w1,
-          h1,
-        ),
-        Rect.fromLTWH(
-          x2,
-          y2,
-          w2,
-          h2,
-        ),
-      ];
+      if (res[8] > 1.0) {
+        segmentAreaRect = [
+          Rect.fromLTWH(
+            res[0],
+            res[1],
+            res[2],
+            res[3],
+          ),
+          Rect.fromLTWH(
+            res[4],
+            res[5],
+            res[6],
+            res[7],
+          ),
+          Rect.fromLTWH(
+            res[8],
+            res[9],
+            res[10],
+            res[11],
+          ),
+        ];
+      } else {
+        segmentAreaRect = [
+          Rect.fromLTWH(
+            res[0],
+            res[1],
+            res[2],
+            res[3],
+          ),
+          Rect.fromLTWH(
+            res[4],
+            res[5],
+            res[6],
+            res[7],
+          )
+        ];
+      }
     } else {
       nullFlag = true;
       segmentAreaRect = [
@@ -145,6 +160,12 @@ class SegmentOcrScanOcr {
           0.0,
           0.0,
         ),
+        const Rect.fromLTWH(
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+        )
       ];
     }
     // 메모리 해제

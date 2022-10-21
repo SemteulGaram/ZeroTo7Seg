@@ -55,8 +55,8 @@ class _ScreenCameraState extends State<ScreenCamera>
   bool focusLockMode = false;
 
   /// 이미지 버퍼
-  Image _imageBuffer1 = Image.asset('assets/default.jpg');
-  Image _imageBuffer2 = Image.asset('assets/default.jpg');
+  final Image _imageBuffer1 = Image.asset('assets/default.jpg');
+  final Image _imageBuffer2 = Image.asset('assets/default.jpg');
 
   /// 외부 OCR 인스턴스
   SegmentOcrScanOcr ocrManager = SegmentOcrScanOcr();
@@ -102,13 +102,13 @@ class _ScreenCameraState extends State<ScreenCamera>
             return;
           }
           image = lib_image.copyRotate(image, 90);
-          image = lib_image.copyResize(image, height: 500);
 
-          var path = '/storage/emulated/0/Download/test.jpg';
+          var temp = await getTemporaryDirectory();
+          var path = temp.path + '/ocr.jpg';
           var file = File(path);
           file.writeAsBytesSync(lib_image.encodeJpg(image, quality: 80));
           log.info('abs path ${file.absolute.path}');
-          await requestOCR(path);
+          await requestOCR(file.absolute.path);
           bload = false;
         }
       });
@@ -129,37 +129,36 @@ class _ScreenCameraState extends State<ScreenCamera>
 
     // 스페이스바 인식 다 제거,
     // 추후 정규표현식 사용하여 숫자 이외에 다 제거하는 식으로 변경해야함
-    _ocrText = _ocrText.replaceAll(" ", "");
 
     // SYS, DIA
     var ocrTextSplit = _ocrText.split("\n");
+    print(_ocrText);
     if (ocrTextSplit.length < 2) {
       return;
     }
     String sys = ocrTextSplit[0];
     String dia = ocrTextSplit[1];
-
+    String pulse = ocrTextSplit.length != 2 ? ocrTextSplit[2] : "";
     //OCR 인식이 제대로 돼서 화면에 그릴 지, 말 지
     bool is_draw = false;
     if (sys.length >= 2 && dia.length >= 2) is_draw = true;
     //OCR 결과 출력
-    print("//");
-    print("//");
-    print("//");
-    print(sys);
-    print(dia);
+
+    print("sys, dia, pulse: $sys, $dia, $pulse");
 
     if (is_draw) {
       List<OcrDrawDto> ocrDrawList = [];
       for (var i = 0; i < result.segmentAreaRect.length; i++) {
-        ocrDrawList.add(OcrDrawDto(
-          text: i == 0 ? sys : dia,
-          rect: Rect.fromLTWH(
-              result.segmentAreaRect[i].left * 1.15,
-              result.segmentAreaRect[i].top * 1.15,
-              result.segmentAreaRect[i].width * 1.15,
-              result.segmentAreaRect[i].height * 1.15),
-        ));
+        if (i < ocrTextSplit.length) {
+          ocrDrawList.add(OcrDrawDto(
+            text: ocrTextSplit[i],
+            rect: Rect.fromLTWH(
+                result.segmentAreaRect[i].left,
+                result.segmentAreaRect[i].top,
+                result.segmentAreaRect[i].width,
+                result.segmentAreaRect[i].height),
+          ));
+        }
       }
       setState(() {
         // ! 작동 안될때의 임시 예제 코드 !
