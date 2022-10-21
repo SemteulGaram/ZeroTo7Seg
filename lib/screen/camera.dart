@@ -55,8 +55,8 @@ class _ScreenCameraState extends State<ScreenCamera>
   bool focusLockMode = false;
 
   /// 이미지 버퍼
-  final Image _imageBuffer1 = Image.asset('assets/default.jpg');
-  final Image _imageBuffer2 = Image.asset('assets/default.jpg');
+  Image _imageBuffer1 = Image.asset('assets/default.jpg');
+  Image _imageBuffer2 = Image.asset('assets/default.jpg');
 
   /// 외부 OCR 인스턴스
   SegmentOcrScanOcr ocrManager = SegmentOcrScanOcr();
@@ -119,6 +119,7 @@ class _ScreenCameraState extends State<ScreenCamera>
 
   /// segment_ocr_scan/ocr.dart 파일에 비동기 OCR 요청 방법
   Future<void> requestOCR(String jpgImagePath) async {
+
     var result = await ocrManager.computeOcrPreprocess2(jpgImagePath);
 
     if (result == null || result.need_to_OCR_img_path.isEmpty) {
@@ -132,31 +133,41 @@ class _ScreenCameraState extends State<ScreenCamera>
 
     // SYS, DIA
     var ocrTextSplit = _ocrText.split("\n");
-    print(_ocrText);
+    RegExp exp = RegExp(r'(\d+)');
+    Iterable<RegExpMatch> matches = exp.allMatches(_ocrText);
+    var items = [0,0,0,0,0,0,0,0,0,0];
+    int count = 0;
+
+    for(final m in matches){
+      String temp = m[0].toString();
+      items[count] = int.parse(temp);
+      count++;
+    }
+    items[0] = items[0] <= items[1] ? items[0]+100 : items[0];
+    for(int i in items)
+      print(i);
+
     if (ocrTextSplit.length < 2) {
       return;
     }
-    String sys = ocrTextSplit[0];
-    String dia = ocrTextSplit[1];
-    String pulse = ocrTextSplit.length != 2 ? ocrTextSplit[2] : "";
     //OCR 인식이 제대로 돼서 화면에 그릴 지, 말 지
     bool is_draw = false;
-    if (sys.length >= 2 && dia.length >= 2) is_draw = true;
+    if(items[0] > 10 && items[1] > 10)
+      is_draw = true;
     //OCR 결과 출력
 
-    print("sys, dia, pulse: $sys, $dia, $pulse");
 
     if (is_draw) {
       List<OcrDrawDto> ocrDrawList = [];
       for (var i = 0; i < result.segmentAreaRect.length; i++) {
         if (i < ocrTextSplit.length) {
           ocrDrawList.add(OcrDrawDto(
-            text: ocrTextSplit[i],
+            text: items[i].toString(),
             rect: Rect.fromLTWH(
-                result.segmentAreaRect[i].left,
-                result.segmentAreaRect[i].top,
-                result.segmentAreaRect[i].width,
-                result.segmentAreaRect[i].height),
+                result.segmentAreaRect[i].left *0.8,
+                result.segmentAreaRect[i].top *0.8,
+                result.segmentAreaRect[i].width *0.8,
+                result.segmentAreaRect[i].height *0.8),
           ));
         }
       }
